@@ -4,6 +4,7 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { PaxtaClient } from './paxta-client.js';
 import { extractPromoCode } from './promo-extractor.js';
+import { TelegramNotifier } from './telegram-notifier.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -32,6 +33,8 @@ const claimHistory = [];
 let isDispatching = false;
 let lastHeartbeat = new Date().toISOString();
 
+const telegram = new TelegramNotifier();
+
 function timestamp() {
   return new Date().toLocaleTimeString('uz-UZ', { hour12: false });
 }
@@ -48,8 +51,9 @@ function startHealthServer() {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       status: 'active',
-      mode: 'AUTO_BUY_NFT_OPTION_1',
+      mode: 'AUTO_BUY_NFT_OPTION_1_WITH_TELEGRAM_REPORTS',
       active_accounts: clients.length,
+      telegram_connected: !!telegram.chatId,
       monitored_user: config.targetUser.username,
       total_claimed_promos: claimedCodes.size,
       recent_claims: claimHistory.slice(-5),
@@ -62,7 +66,7 @@ function startHealthServer() {
   });
 
   server.listen(port, () => {
-    console.log(`🌐 [Render/Web] Auto-Buy NFT dashboard active on port ${port} (URL: /health)`);
+    console.log(`🌐 [Render/Web] Auto-Buy NFT + Telegram dashboard active on port ${port} (URL: /health)`);
   });
 
   // Self-ping to keep Render awake 24/7
@@ -81,7 +85,7 @@ function startHealthServer() {
 
 async function initClients() {
   console.log(`\n======================================================`);
-  console.log(`🥷 PaxtaGram Stars + Auto-Buy NFT Snatcher (1-Yo'l)...`);
+  console.log(`🥷 PaxtaGram Stars + NFT Auto-Buy + Telegram Reports...`);
   console.log(`======================================================`);
   console.log(`[${timestamp()}] ${accounts.length} ta akkaunt tizimga ulanmoqda...`);
 
@@ -104,15 +108,12 @@ async function initClients() {
     process.exit(1);
   }
 
-  console.log(`\n🚀 ${clients.length} ta akkaunt 1-YO'L (O'ziga NFT xarid qilish) rejimida tayyor!`);
-  console.log(`🛡️ Qoida: Har bir akkauntning eski hisobiga tegilmaydi, yangi tushgan barcha starslar darhol NFT/Sovg'aga aylantiriladi!\n`);
+  console.log(`\n🚀 ${clients.length} ta akkaunt tayyor!`);
+  console.log(`📱 Telegram hisoboti yoqilgan: @ArklonBot orqali to'liq yuboriladi.\n`);
 }
 
 /**
- * SMART CLAIM + AUTO BUY:
- * 1. Avval bitta akkauntda sinab ko'radi.
- * 2. Agar haqiqiy bo'lsa, qolgan 7 ta akkaunt kiritadi.
- * 3. Har bir akkauntga yangi tushgan Stars darhol o'sha akkauntning o'ziga NFT/GIFT sotib olishga ishlatiladi!
+ * SMART CLAIM + AUTO BUY NFT + TELEGRAM FULL REPORT
  */
 async function claimForAllAccounts(code, sourceMessage) {
   if (isDispatching) return;
@@ -154,54 +155,86 @@ async function claimForAllAccounts(code, sourceMessage) {
 
   if (isInvalid) {
     console.log(`❌ "${code}" — bu oddiy so'z ekan, promokod emas (StarsBot: "${replyText.trim()}").`);
-    console.log(`🛡️ Qolgan ${clients.length - 1} ta akkauntga yuborilmadi (Spam xavfi bartaraf etildi).\n`);
+    console.log(`🛡️ Qolgan ${clients.length - 1} ta akkauntga yuborilmadi (Spam xavfi yo'q).\n`);
     isDispatching = false;
     return;
   }
 
   console.log(`🎉 PROMO-KOD HAQIQIY! StarsBot: "${replyText.split('\n')[0] || 'Faol'}"`);
-  console.log(`⚡ Qolgan ${clients.length - 1} ta akkauntga yuborilmoqda va barchasida avtomatik NFT sotib olinadi...\n`);
+  console.log(`⚡ Qolgan ${clients.length - 1} ta akkauntga yuborilmoqda va barchasida avtomatik NFT xarid qilinadi...\n`);
 
-  const claimItem = {
-    code,
-    discovered_at: new Date().toISOString(),
-    canary_result: replyText.split('\n')[0],
-    results: [{ username: canaryClient.username, ok: true, delayMs: 0 }]
+  const detailedAccountResults = [];
+
+  // Canary account
+  const canaryResultObj = {
+    username: canaryClient.username,
+    statusText: replyText.split('\n')[0] || 'Faol',
+    initialStars: canaryClient.initialStars,
+    bought: []
   };
+  detailedAccountResults.push(canaryResultObj);
 
-  // 1-akkauntga stars tushgan bo'lsa, darhol avto-xaridni boshlash
+  // Canary xaridni 1.2s keyin bajaradi
   setTimeout(async () => {
-    const bought = await canaryClient.autoSpendPromoGains();
-    if (bought.length) claimItem.results[0].bought = bought;
+    canaryResultObj.bought = await canaryClient.autoSpendPromoGains();
   }, 1200);
 
   const remainingClients = clients.slice(1);
   const remainingPromises = remainingClients.map(async (client, index) => {
-    // Insoniy kechikish: 250ms - 1.8s
     const delay = (index * 280) + Math.floor(Math.random() * 200);
     await sleep(delay);
+
+    const accountObj = {
+      username: client.username,
+      statusText: 'Yuborildi',
+      initialStars: client.initialStars,
+      bought: []
+    };
+    detailedAccountResults.push(accountObj);
 
     try {
       const res = await client.sendToStarsBot(code);
       console.log(`✅ [${index + 2}/${clients.length}] @${client.username.padEnd(12)} -> +${delay}ms da kiritildi (Xabar ID: ${res.messageId})`);
-      
-      // StarsBot stars qo'shgach (~1.8s keyin) yangi tushgan starsga avtomatik o'ziga NFT/Gift sotib oladi!
+
       setTimeout(async () => {
-        const bought = await client.autoSpendPromoGains();
-        claimItem.results.push({ username: client.username, ok: true, delayMs: delay, bought });
+        try {
+          const bMsgs = await client.getMessages(client.starsBotChatId);
+          const bLast = bMsgs[bMsgs.length - 1];
+          if (bLast?.sender?.id === config.starsBot.id) {
+            accountObj.statusText = bLast.text.split('\n')[0];
+          }
+        } catch {}
+
+        accountObj.bought = await client.autoSpendPromoGains();
       }, 1600);
 
     } catch (err) {
       console.log(`❌ [${index + 2}/${clients.length}] @${client.username.padEnd(12)} -> Xato: ${err.message}`);
-      claimItem.results.push({ username: client.username, ok: false, error: err.message });
+      accountObj.statusText = `Xato: ${err.message}`;
     }
   });
 
   await Promise.allSettled(remainingPromises);
-  claimHistory.push(claimItem);
 
-  console.log(`\n🏁 Barcha 8 ta akkauntda promokod kiritildi va avto-xarid jarayoni ishga tushirildi!\n`);
-  isDispatching = false;
+  // 3.8 soniyadan keyin barcha xaridlar yakunlanadi va to'liq Telegram hisoboti yuboriladi
+  setTimeout(async () => {
+    console.log(`\n📨 Telegramga to'liq hisobot yuborilmoqda...`);
+    const reportData = {
+      code,
+      time: timestamp(),
+      source: {
+        sender: sourceMessage?.sender?.username || 'umar',
+        chat: 'Group (@group / @chat)',
+        text: sourceMessage?.text || code
+      },
+      accounts: detailedAccountResults
+    };
+
+    claimHistory.push(reportData);
+    await telegram.sendFullReport(reportData);
+    console.log(`✅ Telegramga to'liq hisobot yuborildi!\n`);
+    isDispatching = false;
+  }, 3800);
 }
 
 async function monitorTargetChats() {
