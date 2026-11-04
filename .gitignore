@@ -1,3 +1,4 @@
 node_modules/
+accounts.json
 .env
 .DS_Store

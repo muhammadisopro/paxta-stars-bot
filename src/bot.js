@@ -11,7 +11,18 @@ const rootDir = path.resolve(__dirname, '..');
 const accountsPath = path.join(rootDir, 'accounts.json');
 const configPath = path.join(rootDir, 'config.json');
 
-const accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf8'));
+// Support both environment variable (Render/Production) and accounts.json (Local)
+let accounts = [];
+if (process.env.PAXTA_ACCOUNTS) {
+  try {
+    accounts = JSON.parse(process.env.PAXTA_ACCOUNTS);
+  } catch (e) {
+    console.error('Failed to parse PAXTA_ACCOUNTS environment variable:', e.message);
+  }
+} else if (fs.existsSync(accountsPath)) {
+  accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf8'));
+}
+
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
 const clients = [];
