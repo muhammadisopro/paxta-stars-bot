@@ -28,6 +28,7 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const clients = [];
 const seenMessageIds = new Set();
 const claimedCodes = new Set();
+const claimHistory = [];
 let isDispatching = false;
 let lastHeartbeat = new Date().toISOString();
 
@@ -35,34 +36,38 @@ function timestamp() {
   return new Date().toLocaleTimeString('uz-UZ', { hour12: false });
 }
 
-// 1. Lightweight HTTP Health Check Server for Render / UptimeRobot
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// 1. Lightweight Web Dashboard for Render / Mobile Monitoring
 function startHealthServer() {
   const port = process.env.PORT || 3000;
   const server = http.createServer((req, res) => {
     lastHeartbeat = new Date().toISOString();
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
-      status: 'ok',
-      service: 'PaxtaGram Stars Promo Snatcher',
+      status: 'active',
+      mode: 'STEALTH_ANTI_DETECTION',
       active_accounts: clients.length,
       monitored_user: config.targetUser.username,
-      claimed_codes_count: claimedCodes.size,
+      total_claimed_promos: claimedCodes.size,
+      recent_claims: claimHistory.slice(-5),
       last_heartbeat: lastHeartbeat
     }, null, 2));
   });
 
   server.listen(port, () => {
-    console.log(`🌐 [Render/Web] Health server listening on port ${port} (URL: /health)`);
+    console.log(`🌐 [Render/Web] Stealth dashboard active on port ${port} (URL: /health)`);
   });
 
-  // Self-ping to prevent Render from idling/sleeping
+  // Self-ping to keep Render awake 24/7
   const renderUrl = process.env.RENDER_EXTERNAL_URL;
   if (renderUrl) {
     console.log(`🔄 Avtomatik self-ping yoqildi: ${renderUrl}/health (har 10 daqiqada)`);
     setInterval(async () => {
       try {
         await fetch(`${renderUrl}/health`);
-        console.log(`[${timestamp()}] ⏰ Self-ping muvaffaqiyatli bajarildi (Render uyg'oq holda saqlanmoqda).`);
       } catch (err) {
         // ignore
       }
@@ -72,42 +77,37 @@ function startHealthServer() {
 
 async function initClients() {
   console.log(`\n======================================================`);
-  console.log(`⚡ PaxtaGram Stars Promo Snatcher ishga tushmoqda...`);
+  console.log(`🥷 PaxtaGram Stars Stealth Snatcher (Anti-Ban Rejimi)...`);
   console.log(`======================================================`);
-  console.log(`[${timestamp()}] ${accounts.length} ta akkaunt avtorizatsiyadan o'tkazilmoqda...`);
+  console.log(`[${timestamp()}] ${accounts.length} ta akkaunt tizimga ulanmoqda...`);
 
-  const loginPromises = accounts.map(async (acc) => {
-    const client = new PaxtaClient(acc, config);
-    await client.login();
-    await client.resolveStarsBotChat();
-    await client.resolveShadeChat();
-    return client;
-  });
-
-  const results = await Promise.allSettled(loginPromises);
-  results.forEach((res, idx) => {
+  // Random stagger on login as well to avoid burst logins
+  for (let idx = 0; idx < accounts.length; idx++) {
     const acc = accounts[idx];
-    if (res.status === 'fulfilled') {
-      const c = res.value;
-      clients.push(c);
-      console.log(`✅ [Akkaunt ${idx + 1}] @${c.username.padEnd(12)} -> StarsBot ID: ${c.starsBotChatId} | Shade Chat ID: ${c.shadeChatId || 'Self'}`);
-    } else {
-      console.error(`❌ [Akkaunt ${idx + 1}] @${acc.username.padEnd(12)} ulanmadi: ${res.reason.message}`);
+    try {
+      const client = new PaxtaClient(acc, config);
+      await client.login();
+      await client.resolveStarsBotChat();
+      clients.push(client);
+      console.log(`✅ [Akkaunt ${idx + 1}] @${client.username.padEnd(12)} ulandi (StarsBot Chat ID: ${client.starsBotChatId})`);
+      await sleep(300 + Math.floor(Math.random() * 200));
+    } catch (err) {
+      console.error(`❌ [Akkaunt ${idx + 1}] @${acc.username.padEnd(12)} ulanmadi: ${err.message}`);
     }
-  });
+  }
 
   if (clients.length === 0) {
-    console.error(`[${timestamp()}] Birorta ham akkaunt ulanmadi. Iltimos accounts.json ni tekshiring.`);
+    console.error(`[${timestamp()}] Birorta ham akkaunt ulanmadi.`);
     process.exit(1);
   }
 
-  console.log(`\n🚀 ${clients.length} ta akkaunt 100% tayyor holatda!`);
+  console.log(`\n🚀 ${clients.length} ta akkaunt STEALTH rejimida tayyor!`);
   console.log(`🎯 Kuzatilayotgan foydalanuvchi: @${config.targetUser.username} (ID: ${config.targetUser.id})`);
   console.log(`📢 Kuzatilayotgan guruhlar: ${config.monitoredChats.map(c => `${c.title} [${c.id}]`).join(', ')}`);
-  console.log(`🤖 Maqsadli bot: @${config.starsBot.username}`);
-  console.log(`⏱️ Monitoring tezligi: har ${config.pollIntervalMs} ms da\n`);
+  console.log(`🛡️ Xavfsizlik: Insoniy kechikish (Random Jitter) + Brauzer niqobi yoqilgan.\n`);
 }
 
+// Claim with humanized, realistic intervals between accounts so it looks 100% natural
 async function claimForAllAccounts(code, sourceMessage) {
   if (isDispatching) return;
   isDispatching = true;
@@ -117,70 +117,51 @@ async function claimForAllAccounts(code, sourceMessage) {
   if (sourceMessage) {
     console.log(`📩 Manba xabar: "${sourceMessage.text}" (Yuboruvchi: @${sourceMessage.sender?.username || 'umar'})`);
   }
-  console.log(`⚡ ${clients.length} ta akkauntning barchasidan birdaniga yuborilmoqda (/promo ${code})...\n`);
+  console.log(`🥷 Akkauntlar insoniy kechikish bilan ketma-ket yuborishni boshlamoqda...\n`);
 
-  const startTime = Date.now();
-  const promises = clients.map(client => client.sendToStarsBot(code));
-  const results = await Promise.allSettled(promises);
-  const totalDuration = Date.now() - startTime;
+  const claimItem = {
+    code,
+    discovered_at: new Date().toISOString(),
+    results: []
+  };
 
-  console.log(`------------------------------------------------------`);
-  console.log(`🏁 Yuborish yakunlandi (${totalDuration} ms ichida barchasiga yuborildi):`);
-  console.log(`------------------------------------------------------`);
+  const dispatchPromises = clients.map(async (client, index) => {
+    // Humanized jitter: Account 1 is fast, next accounts have natural intervals
+    const delay = index === 0 
+      ? 150 + Math.floor(Math.random() * 150) 
+      : (index * 420) + Math.floor(Math.random() * 300);
 
-  for (let i = 0; i < results.length; i++) {
-    const res = results[i];
-    const client = clients[i];
-    if (res.status === 'fulfilled') {
-      console.log(`✅ @${client.username.padEnd(12)} -> Xabar ID: ${res.value.messageId} | Tezlik: ${res.value.latencyMs} ms`);
-    } else {
-      console.log(`❌ @${client.username.padEnd(12)} -> Xato: ${res.reason?.message || res.reason}`);
+    await sleep(delay);
+
+    try {
+      const res = await client.sendToStarsBot(code);
+      console.log(`✅ [${index + 1}/${clients.length}] @${client.username.padEnd(12)} -> +${delay}ms da yuborildi (Xabar ID: ${res.messageId})`);
+      claimItem.results.push({ username: client.username, ok: true, delayMs: delay });
+    } catch (err) {
+      console.log(`❌ [${index + 1}/${clients.length}] @${client.username.padEnd(12)} -> Xato: ${err.message}`);
+      claimItem.results.push({ username: client.username, ok: false, error: err.message });
     }
-  }
+  });
 
-  // Check StarsBot replies after 1.5 seconds and report to @shade from each account!
-  setTimeout(async () => {
-    console.log(`\n📊 [${timestamp()}] StarsBot javoblari olinmoqda va @shade ga hisobot yuborilmoqda:`);
-    for (const client of clients) {
-      try {
-        const msgs = await client.getMessages(client.starsBotChatId);
-        const lastMsg = msgs[msgs.length - 1];
-        let replyText = '';
-        if (lastMsg && (lastMsg.sender?.is_bot || lastMsg.sender?.id === config.starsBot.id)) {
-          replyText = lastMsg.text;
-          const firstLine = replyText.split('\n')[0];
-          console.log(`🤖 @${client.username.padEnd(12)}: ${firstLine}`);
-        }
+  await Promise.allSettled(dispatchPromises);
+  claimHistory.push(claimItem);
 
-        // Send report directly to @shade from this account's own name
-        if (client.username.toLowerCase() !== 'shade') {
-          await client.sendReportToShade(code, replyText);
-          console.log(`📨 @${client.username.padEnd(12)} -> @shade ga hisobot jo'natdi.`);
-        }
-      } catch (err) {
-        console.error(`@${client.username} hisobot jo'natishda xato:`, err.message);
-      }
-    }
-    console.log(`------------------------------------------------------\n`);
-    isDispatching = false;
-  }, 1800);
+  console.log(`\n🏁 Barcha akkauntlardan yuborish yakunlandi.`);
+  isDispatching = false;
 }
 
 async function monitorTargetChats() {
-  if (clients.length === 0) return;
-  const listenerClient = clients[0]; // Primary monitoring account
+  if (clients.length === 0 || isDispatching) return;
+  const listenerClient = clients[0];
 
   for (const chatInfo of config.monitoredChats) {
     try {
       const messages = await listenerClient.getMessages(chatInfo.id);
       if (!Array.isArray(messages) || messages.length === 0) continue;
 
-      // On initial start, populate seenMessageIds so historical messages aren't re-processed
       if (seenMessageIds.size === 0) {
-        for (const m of messages) {
-          seenMessageIds.add(m.id);
-        }
-        console.log(`[${timestamp()}] ${chatInfo.title} guruhidagi oldingi ${messages.length} ta xabar belgilandi. Yangilari kutilmoqda...`);
+        for (const m of messages) seenMessageIds.add(m.id);
+        console.log(`[${timestamp()}] ${chatInfo.title} guruhidagi ${messages.length} ta xabar o'qildi. Yangilari kutilmoqda...`);
         continue;
       }
 
@@ -191,7 +172,6 @@ async function monitorTargetChats() {
         const senderId = msg.sender?.id || msg.user?.id;
         const senderUsername = (msg.sender?.username || msg.user?.username || '').toLowerCase();
 
-        // Check if message is from target user (@umar)
         const isFromUmar = senderId === config.targetUser.id || senderUsername === config.targetUser.username.toLowerCase();
 
         if (isFromUmar) {
@@ -201,15 +181,11 @@ async function monitorTargetChats() {
           const promo = extractPromoCode(msgText);
           if (promo && !claimedCodes.has(promo.toUpperCase())) {
             await claimForAllAccounts(promo, msg);
-          } else if (promo && claimedCodes.has(promo.toUpperCase())) {
-            console.log(`ℹ️ "${promo}" kodi allaqachon faollashtirilgan.`);
-          } else {
-            console.log(`ℹ️ Xabarda promo-kod topilmadi.`);
           }
         }
       }
     } catch (err) {
-      // In case of network blip, continue
+      // ignore temporary network drops
     }
   }
 }
@@ -218,17 +194,24 @@ async function main() {
   startHealthServer();
   await initClients();
 
-  // Run the monitoring loop at high frequency
-  setInterval(monitorTargetChats, config.pollIntervalMs);
+  // Natural poll interval: ~800-1100ms with jitter
+  function scheduleNextPoll() {
+    const interval = 850 + Math.floor(Math.random() * 250);
+    setTimeout(async () => {
+      await monitorTargetChats();
+      scheduleNextPoll();
+    }, interval);
+  }
+  scheduleNextPoll();
 
-  // Keep alive & prevent token expiration: re-login every 6 hours
+  // Session keep-alive every 6 hours
   setInterval(async () => {
     console.log(`[${timestamp()}] Sessiyalar yangilanmoqda...`);
     for (const c of clients) {
       try {
         await c.login();
       } catch (e) {
-        console.error(`@${c.username} sessiyani yangilashda xato:`, e.message);
+        // ignore
       }
     }
   }, 6 * 60 * 60 * 1000);

@@ -6,6 +6,20 @@ function generateRandomId() {
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Realistic Windows Chrome headers
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'ru-RU,ru;q=0.9,uz;q=0.8,en;q=0.7',
+  'Sec-CH-UA': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+  'Sec-CH-UA-Mobile': '?0',
+  'Sec-CH-UA-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'Referer': 'https://paxta.online/'
+};
+
 export class PaxtaClient {
   constructor(account, config) {
     this.username = account.username.replace(/^@/, '');
@@ -14,14 +28,13 @@ export class PaxtaClient {
     this.jar = new CookieJar();
     this.user = null;
     this.starsBotChatId = null;
-    this.shadeChatId = null;
     this.isLoggedIn = false;
   }
 
   async request(path, options = {}) {
     const url = path.startsWith('http') ? path : `${this.config.apiBase}${path}`;
     const headers = {
-      'Accept': 'application/json',
+      ...BROWSER_HEADERS,
       'Cookie': this.jar.getCookieHeader(),
       'X-XSRF-TOKEN': this.jar.getXSRFToken(),
       ...(options.headers || {})
@@ -43,7 +56,7 @@ export class PaxtaClient {
 
   async login() {
     // 1. Get CSRF cookie
-    const csrfRes = await fetch(this.config.sanctumUrl);
+    const csrfRes = await fetch(this.config.sanctumUrl, { headers: BROWSER_HEADERS });
     this.jar.setFromHeaders(csrfRes.headers);
 
     // 2. Perform authentication
@@ -86,27 +99,6 @@ export class PaxtaClient {
     return this.starsBotChatId;
   }
 
-  async resolveShadeChat() {
-    if (this.shadeChatId) return this.shadeChatId;
-    if (this.username.toLowerCase() === 'shade') return null; // Shade is self
-
-    const res = await this.request('/chats/private', {
-      method: 'POST',
-      body: {
-        user_id: 100 // Shade User ID
-      }
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Failed to resolve Shade chat for @${this.username}: ${err}`);
-    }
-
-    const data = await res.json();
-    this.shadeChatId = data.chat?.id;
-    return this.shadeChatId;
-  }
-
   async sendMessage(chatId, text) {
     const random_id = generateRandomId();
     const res = await this.request(`/chats/${chatId}/messages`, {
@@ -139,20 +131,6 @@ export class PaxtaClient {
       messageId: result.message?.id,
       latencyMs: latency
     };
-  }
-
-  async sendReportToShade(promoCode, botReplyText) {
-    try {
-      if (this.username.toLowerCase() === 'shade') return null;
-      if (!this.shadeChatId) {
-        await this.resolveShadeChat();
-      }
-      const text = `🎉 [Promokod Faollashtirildi]\nAkkaunt: @${this.username}\nKod: ${promoCode}\n\n🤖 StarsBot: ${botReplyText || 'Muvaffaqiyatli'}`;
-      return await this.sendMessage(this.shadeChatId, text);
-    } catch (err) {
-      console.error(`@${this.username} -> Shade ga hisobot yuborishda xato:`, err.message);
-      return null;
-    }
   }
 
   async getMessages(chatId) {
