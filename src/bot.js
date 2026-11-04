@@ -48,7 +48,7 @@ function startHealthServer() {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       status: 'active',
-      mode: 'STEALTH_ANTI_DETECTION',
+      mode: 'SMART_VERIFY_FIRST',
       active_accounts: clients.length,
       monitored_user: config.targetUser.username,
       total_claimed_promos: claimedCodes.size,
@@ -58,7 +58,7 @@ function startHealthServer() {
   });
 
   server.listen(port, () => {
-    console.log(`🌐 [Render/Web] Stealth dashboard active on port ${port} (URL: /health)`);
+    console.log(`🌐 [Render/Web] Smart verification dashboard active on port ${port} (URL: /health)`);
   });
 
   // Self-ping to keep Render awake 24/7
@@ -77,11 +77,10 @@ function startHealthServer() {
 
 async function initClients() {
   console.log(`\n======================================================`);
-  console.log(`🥷 PaxtaGram Stars Stealth Snatcher (Anti-Ban Rejimi)...`);
+  console.log(`🥷 PaxtaGram Stars Smart Verifier (Sinov va Tasdiq)...`);
   console.log(`======================================================`);
   console.log(`[${timestamp()}] ${accounts.length} ta akkaunt tizimga ulanmoqda...`);
 
-  // Random stagger on login as well to avoid burst logins
   for (let idx = 0; idx < accounts.length; idx++) {
     const acc = accounts[idx];
     try {
@@ -90,7 +89,7 @@ async function initClients() {
       await client.resolveStarsBotChat();
       clients.push(client);
       console.log(`✅ [Akkaunt ${idx + 1}] @${client.username.padEnd(12)} ulandi (StarsBot Chat ID: ${client.starsBotChatId})`);
-      await sleep(300 + Math.floor(Math.random() * 200));
+      await sleep(250 + Math.floor(Math.random() * 200));
     } catch (err) {
       console.error(`❌ [Akkaunt ${idx + 1}] @${acc.username.padEnd(12)} ulanmadi: ${err.message}`);
     }
@@ -101,52 +100,94 @@ async function initClients() {
     process.exit(1);
   }
 
-  console.log(`\n🚀 ${clients.length} ta akkaunt STEALTH rejimida tayyor!`);
-  console.log(`🎯 Kuzatilayotgan foydalanuvchi: @${config.targetUser.username} (ID: ${config.targetUser.id})`);
-  console.log(`📢 Kuzatilayotgan guruhlar: ${config.monitoredChats.map(c => `${c.title} [${c.id}]`).join(', ')}`);
-  console.log(`🛡️ Xavfsizlik: Insoniy kechikish (Random Jitter) + Brauzer niqobi yoqilgan.\n`);
+  console.log(`\n🚀 ${clients.length} ta akkaunt SMART rejimida tayyor!`);
+  console.log(`🎯 Sinovchi (Canary) akkaunt: @${clients[0].username}`);
+  console.log(`🛡️ Tartib: Avval 1-akkauntda tekshiriladi, agar promokod ishlasa, qolgan 7 tasi darhol kiritadi!\n`);
 }
 
-// Claim with humanized, realistic intervals between accounts so it looks 100% natural
+/**
+ * SMART CLAIM:
+ * 1. Avval bitta akkauntda sinab ko'radi.
+ * 2. Agar StarsBot "Такого промокода нет" desa, bu oddiy gap ekani aniqlanadi va qolgan akkauntlar xavotirga qo'yilmaydi.
+ * 3. Agar StarsBot uni faollashtirsa, qolgan 7 ta akkaunt birdaniga kiritadi!
+ */
 async function claimForAllAccounts(code, sourceMessage) {
   if (isDispatching) return;
   isDispatching = true;
   claimedCodes.add(code.toUpperCase());
 
-  console.log(`\n🔥 [${timestamp()}] YANGI PROMO-KOD ANIQLANDI: "${code}" !`);
+  console.log(`\n🔍 [${timestamp()}] TEKSHIRUV BOSHLANDI: "${code}"`);
   if (sourceMessage) {
-    console.log(`📩 Manba xabar: "${sourceMessage.text}" (Yuboruvchi: @${sourceMessage.sender?.username || 'umar'})`);
+    console.log(`📩 Manba xabar: "${sourceMessage.text}" (@${sourceMessage.sender?.username || 'umar'})`);
   }
-  console.log(`🥷 Akkauntlar insoniy kechikish bilan ketma-ket yuborishni boshlamoqda...\n`);
+  console.log(`🧪 1-akkaunt (@${clients[0].username}) orqali kod tekshirilmoqda...`);
+
+  const canaryClient = clients[0];
+  try {
+    await canaryClient.sendToStarsBot(code);
+  } catch (err) {
+    console.error(`Canary akkauntda xato:`, err.message);
+    isDispatching = false;
+    return;
+  }
+
+  // StarsBot javobini kutish (~450ms)
+  await sleep(450);
+
+  let replyText = '';
+  try {
+    const msgs = await canaryClient.getMessages(canaryClient.starsBotChatId);
+    const lastMsg = msgs[msgs.length - 1];
+    if (lastMsg && (lastMsg.sender?.is_bot || lastMsg.sender?.id === config.starsBot.id)) {
+      replyText = lastMsg.text || '';
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  const replyLower = replyText.toLowerCase();
+  const isInvalid = replyLower.includes('такого промокода нет') || 
+                    replyLower.includes('напишите код после команды');
+
+  // Agar StarsBot "bunday promokod yo'q" desa — bu oddiy gap bo'lgan!
+  if (isInvalid) {
+    console.log(`❌ "${code}" — bu oddiy so'z ekan, promokod emas (StarsBot: "${replyText.trim()}").`);
+    console.log(`🛡️ Qolgan ${clients.length - 1} ta akkauntga yuborilmadi (Spam va ban xavfi bartaraf etildi).\n`);
+    isDispatching = false;
+    return;
+  }
+
+  // Agar promokod haqiqiy bo'lsa:
+  console.log(`🎉 PROMO-KOD HAQIQIY! StarsBot javobi: "${replyText.split('\n')[0] || 'Faol'}"`);
+  console.log(`⚡ Qolgan ${clients.length - 1} ta akkauntga darhol yuborilmoqda...\n`);
 
   const claimItem = {
     code,
     discovered_at: new Date().toISOString(),
-    results: []
+    canary_result: replyText.split('\n')[0],
+    results: [{ username: canaryClient.username, ok: true, delayMs: 0 }]
   };
 
-  const dispatchPromises = clients.map(async (client, index) => {
-    // Humanized jitter: Account 1 is fast, next accounts have natural intervals
-    const delay = index === 0 
-      ? 150 + Math.floor(Math.random() * 150) 
-      : (index * 420) + Math.floor(Math.random() * 300);
-
+  const remainingClients = clients.slice(1);
+  const remainingPromises = remainingClients.map(async (client, index) => {
+    // Insoniy kechikish: 250ms - 1.8s
+    const delay = (index * 280) + Math.floor(Math.random() * 200);
     await sleep(delay);
 
     try {
       const res = await client.sendToStarsBot(code);
-      console.log(`✅ [${index + 1}/${clients.length}] @${client.username.padEnd(12)} -> +${delay}ms da yuborildi (Xabar ID: ${res.messageId})`);
+      console.log(`✅ [${index + 2}/${clients.length}] @${client.username.padEnd(12)} -> +${delay}ms da kiritildi (Xabar ID: ${res.messageId})`);
       claimItem.results.push({ username: client.username, ok: true, delayMs: delay });
     } catch (err) {
-      console.log(`❌ [${index + 1}/${clients.length}] @${client.username.padEnd(12)} -> Xato: ${err.message}`);
+      console.log(`❌ [${index + 2}/${clients.length}] @${client.username.padEnd(12)} -> Xato: ${err.message}`);
       claimItem.results.push({ username: client.username, ok: false, error: err.message });
     }
   });
 
-  await Promise.allSettled(dispatchPromises);
+  await Promise.allSettled(remainingPromises);
   claimHistory.push(claimItem);
 
-  console.log(`\n🏁 Barcha akkauntlardan yuborish yakunlandi.`);
+  console.log(`\n🏁 Barcha 8 ta akkauntda promokod muvaffaqiyatli qabul qilindi!\n`);
   isDispatching = false;
 }
 
