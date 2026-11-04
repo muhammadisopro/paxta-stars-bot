@@ -8,6 +8,9 @@
     "start": "node src/bot.js",
     "test-login": "node -e \"import('./src/bot.js').then(m => m.testLogins())\""
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "keywords": ["paxta", "starsbot", "bot", "promo"],
   "author": "Muhammadiso",
   "license": "MIT"
