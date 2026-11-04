@@ -1,0 +1,19 @@
+{
+  "apiBase": "https://paxta.online/api",
+  "sanctumUrl": "https://paxta.online/sanctum/csrf-cookie",
+  "targetUser": {
+    "id": 2,
+    "username": "umar"
+  },
+  "starsBot": {
+    "id": 54,
+    "username": "StarsBot"
+  },
+  "monitoredChats": [
+    {
+      "id": 3000000001,
+      "title": "Group (@chat / @group)"
+    }
+  ],
+  "pollIntervalMs": 350
+}

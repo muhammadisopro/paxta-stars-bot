@@ -1,0 +1,14 @@
+{
+  "name": "paxta-stars-promo-bot",
+  "version": "1.0.0",
+  "description": "Ultra-fast automated promo claimer for PaxtaGram StarsBot",
+  "type": "module",
+  "main": "src/bot.js",
+  "scripts": {
+    "start": "node src/bot.js",
+    "test-login": "node -e \"import('./src/bot.js').then(m => m.testLogins())\""
+  },
+  "keywords": ["paxta", "starsbot", "bot", "promo"],
+  "author": "Muhammadiso",
+  "license": "MIT"
+}
