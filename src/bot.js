@@ -48,17 +48,21 @@ function startHealthServer() {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       status: 'active',
-      mode: 'SMART_VERIFY_FIRST',
+      mode: 'AUTO_BUY_NFT_OPTION_1',
       active_accounts: clients.length,
       monitored_user: config.targetUser.username,
       total_claimed_promos: claimedCodes.size,
       recent_claims: claimHistory.slice(-5),
+      accounts_overview: clients.map(c => ({
+        username: c.username,
+        protected_base_stars: c.initialStars
+      })),
       last_heartbeat: lastHeartbeat
     }, null, 2));
   });
 
   server.listen(port, () => {
-    console.log(`🌐 [Render/Web] Smart verification dashboard active on port ${port} (URL: /health)`);
+    console.log(`🌐 [Render/Web] Auto-Buy NFT dashboard active on port ${port} (URL: /health)`);
   });
 
   // Self-ping to keep Render awake 24/7
@@ -77,7 +81,7 @@ function startHealthServer() {
 
 async function initClients() {
   console.log(`\n======================================================`);
-  console.log(`🥷 PaxtaGram Stars Smart Verifier (Sinov va Tasdiq)...`);
+  console.log(`🥷 PaxtaGram Stars + Auto-Buy NFT Snatcher (1-Yo'l)...`);
   console.log(`======================================================`);
   console.log(`[${timestamp()}] ${accounts.length} ta akkaunt tizimga ulanmoqda...`);
 
@@ -88,7 +92,7 @@ async function initClients() {
       await client.login();
       await client.resolveStarsBotChat();
       clients.push(client);
-      console.log(`✅ [Akkaunt ${idx + 1}] @${client.username.padEnd(12)} ulandi (StarsBot Chat ID: ${client.starsBotChatId})`);
+      console.log(`✅ [Akkaunt ${idx + 1}] @${client.username.padEnd(12)} -> Himoyalangan eski hisob: ${client.initialStars} ⭐`);
       await sleep(250 + Math.floor(Math.random() * 200));
     } catch (err) {
       console.error(`❌ [Akkaunt ${idx + 1}] @${acc.username.padEnd(12)} ulanmadi: ${err.message}`);
@@ -100,16 +104,15 @@ async function initClients() {
     process.exit(1);
   }
 
-  console.log(`\n🚀 ${clients.length} ta akkaunt SMART rejimida tayyor!`);
-  console.log(`🎯 Sinovchi (Canary) akkaunt: @${clients[0].username}`);
-  console.log(`🛡️ Tartib: Avval 1-akkauntda tekshiriladi, agar promokod ishlasa, qolgan 7 tasi darhol kiritadi!\n`);
+  console.log(`\n🚀 ${clients.length} ta akkaunt 1-YO'L (O'ziga NFT xarid qilish) rejimida tayyor!`);
+  console.log(`🛡️ Qoida: Har bir akkauntning eski hisobiga tegilmaydi, yangi tushgan barcha starslar darhol NFT/Sovg'aga aylantiriladi!\n`);
 }
 
 /**
- * SMART CLAIM:
+ * SMART CLAIM + AUTO BUY:
  * 1. Avval bitta akkauntda sinab ko'radi.
- * 2. Agar StarsBot "Такого промокода нет" desa, bu oddiy gap ekani aniqlanadi va qolgan akkauntlar xavotirga qo'yilmaydi.
- * 3. Agar StarsBot uni faollashtirsa, qolgan 7 ta akkaunt birdaniga kiritadi!
+ * 2. Agar haqiqiy bo'lsa, qolgan 7 ta akkaunt kiritadi.
+ * 3. Har bir akkauntga yangi tushgan Stars darhol o'sha akkauntning o'ziga NFT/GIFT sotib olishga ishlatiladi!
  */
 async function claimForAllAccounts(code, sourceMessage) {
   if (isDispatching) return;
@@ -149,17 +152,15 @@ async function claimForAllAccounts(code, sourceMessage) {
   const isInvalid = replyLower.includes('такого промокода нет') || 
                     replyLower.includes('напишите код после команды');
 
-  // Agar StarsBot "bunday promokod yo'q" desa — bu oddiy gap bo'lgan!
   if (isInvalid) {
     console.log(`❌ "${code}" — bu oddiy so'z ekan, promokod emas (StarsBot: "${replyText.trim()}").`);
-    console.log(`🛡️ Qolgan ${clients.length - 1} ta akkauntga yuborilmadi (Spam va ban xavfi bartaraf etildi).\n`);
+    console.log(`🛡️ Qolgan ${clients.length - 1} ta akkauntga yuborilmadi (Spam xavfi bartaraf etildi).\n`);
     isDispatching = false;
     return;
   }
 
-  // Agar promokod haqiqiy bo'lsa:
-  console.log(`🎉 PROMO-KOD HAQIQIY! StarsBot javobi: "${replyText.split('\n')[0] || 'Faol'}"`);
-  console.log(`⚡ Qolgan ${clients.length - 1} ta akkauntga darhol yuborilmoqda...\n`);
+  console.log(`🎉 PROMO-KOD HAQIQIY! StarsBot: "${replyText.split('\n')[0] || 'Faol'}"`);
+  console.log(`⚡ Qolgan ${clients.length - 1} ta akkauntga yuborilmoqda va barchasida avtomatik NFT sotib olinadi...\n`);
 
   const claimItem = {
     code,
@@ -167,6 +168,12 @@ async function claimForAllAccounts(code, sourceMessage) {
     canary_result: replyText.split('\n')[0],
     results: [{ username: canaryClient.username, ok: true, delayMs: 0 }]
   };
+
+  // 1-akkauntga stars tushgan bo'lsa, darhol avto-xaridni boshlash
+  setTimeout(async () => {
+    const bought = await canaryClient.autoSpendPromoGains();
+    if (bought.length) claimItem.results[0].bought = bought;
+  }, 1200);
 
   const remainingClients = clients.slice(1);
   const remainingPromises = remainingClients.map(async (client, index) => {
@@ -177,7 +184,13 @@ async function claimForAllAccounts(code, sourceMessage) {
     try {
       const res = await client.sendToStarsBot(code);
       console.log(`✅ [${index + 2}/${clients.length}] @${client.username.padEnd(12)} -> +${delay}ms da kiritildi (Xabar ID: ${res.messageId})`);
-      claimItem.results.push({ username: client.username, ok: true, delayMs: delay });
+      
+      // StarsBot stars qo'shgach (~1.8s keyin) yangi tushgan starsga avtomatik o'ziga NFT/Gift sotib oladi!
+      setTimeout(async () => {
+        const bought = await client.autoSpendPromoGains();
+        claimItem.results.push({ username: client.username, ok: true, delayMs: delay, bought });
+      }, 1600);
+
     } catch (err) {
       console.log(`❌ [${index + 2}/${clients.length}] @${client.username.padEnd(12)} -> Xato: ${err.message}`);
       claimItem.results.push({ username: client.username, ok: false, error: err.message });
@@ -187,7 +200,7 @@ async function claimForAllAccounts(code, sourceMessage) {
   await Promise.allSettled(remainingPromises);
   claimHistory.push(claimItem);
 
-  console.log(`\n🏁 Barcha 8 ta akkauntda promokod muvaffaqiyatli qabul qilindi!\n`);
+  console.log(`\n🏁 Barcha 8 ta akkauntda promokod kiritildi va avto-xarid jarayoni ishga tushirildi!\n`);
   isDispatching = false;
 }
 
