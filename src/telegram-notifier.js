@@ -116,4 +116,19 @@ export class TelegramNotifier {
 
     return await this.sendMessage(msg);
   }
+
+  async sendSniperAlert(info) {
+    const time = new Date().toLocaleTimeString('uz-UZ', { hour12: false });
+    const text = `🎯 <b>SNIPER XARID QILDI!</b>\n` +
+                 `━━━━━━━━━━━━━━━━━━━━━\n` +
+                 `👤 <b>Akkaunt:</b> @${info.account}\n` +
+                 `🏷 <b>Bozor:</b> ${info.market}\n` +
+                 `📦 <b>Kategoriya:</b> ${info.type}\n` +
+                 `💎 <b>Buyum:</b> <code>${info.item}</code>\n` +
+                 `💰 <b>Xarid narxi:</b> <code>${info.price} ⭐</code>\n` +
+                 `⏰ <b>Vaqt:</b> ${time}\n` +
+                 `━━━━━━━━━━━━━━━━━━━━━\n` +
+                 `⚡ <i>Arzon narxda darhol ilib olindi!</i>`;
+    return await this.sendMessage(text);
+  }
 }

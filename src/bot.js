@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { PaxtaClient } from './paxta-client.js';
 import { extractPromoCode } from './promo-extractor.js';
 import { TelegramNotifier } from './telegram-notifier.js';
+import { MarketSniper } from './sniper.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -32,6 +33,7 @@ const claimedCodes = new Set();
 const claimHistory = [];
 let isDispatching = false;
 let lastHeartbeat = new Date().toISOString();
+let sniper = null;
 
 const telegram = new TelegramNotifier();
 
@@ -61,6 +63,15 @@ function startHealthServer() {
         username: c.username,
         protected_base_stars: c.initialStars
       })),
+      sniper: sniper ? {
+        status: sniper.isRunning ? 'active' : 'idle',
+        target_account: `@${sniper.client.username}`,
+        max_nft_stars: sniper.maxNftPrice,
+        max_auction_stars: sniper.maxAuctionPrice,
+        scan_count: sniper.scanCount,
+        sniped_count: sniper.snipedCount,
+        last_scan: sniper.lastScanTime
+      } : null,
       last_heartbeat: lastHeartbeat
     }, null, 2));
   });
@@ -281,6 +292,28 @@ async function main() {
   startHealthServer();
   await initClients();
 
+  // Initialize Market & Auction Sniper on @relayer
+  const relayerClient = clients.find(c => c.username.toLowerCase() === 'relayer');
+  if (relayerClient) {
+    sniper = new MarketSniper({
+      paxtaClient: relayerClient,
+      telegram,
+      config: {
+        maxNftPrice: 100,       // Max 100 stars for NFT gifts
+        maxAuctionPrice: 1000   // Max 1000 stars for usernames & numbers
+      }
+    });
+    try {
+      await sniper.init();
+      sniper.start();
+      console.log(`🎯 Market & Auction Sniper muvaffaqiyatli ishga tushdi (@${relayerClient.username})!\n`);
+    } catch (err) {
+      console.error(`❌ Sniper ishga tushishida xatolik:`, err.message);
+    }
+  } else {
+    console.warn(`⚠️ @relayer akkaunti topilmadi, Sniper ishga tushirilmadi.`);
+  }
+
   // Natural poll interval: ~800-1100ms with jitter
   function scheduleNextPoll() {
     const interval = 850 + Math.floor(Math.random() * 250);
@@ -300,6 +333,11 @@ async function main() {
       } catch (e) {
         // ignore
       }
+    }
+    if (sniper && sniper.auctionClient) {
+      try {
+        await sniper.auctionClient.authenticate();
+      } catch (e) {}
     }
   }, 6 * 60 * 60 * 1000);
 }
