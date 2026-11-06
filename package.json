@@ -6,6 +6,7 @@
   "main": "src/bot.js",
   "scripts": {
     "start": "node src/bot.js",
+    "buy-gifts": "node src/auto-gift-buyer.js",
     "test-login": "node -e \"import('./src/bot.js').then(m => m.testLogins())\""
   },
   "engines": {

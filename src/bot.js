@@ -6,6 +6,7 @@ import { PaxtaClient } from './paxta-client.js';
 import { extractPromoCode } from './promo-extractor.js';
 import { TelegramNotifier } from './telegram-notifier.js';
 import { MarketSniper } from './sniper.js';
+import { AutoGiftBuyer } from './auto-gift-buyer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -34,6 +35,7 @@ const claimHistory = [];
 let isDispatching = false;
 let lastHeartbeat = new Date().toISOString();
 let sniper = null;
+let giftBuyer = null;
 
 const telegram = new TelegramNotifier();
 
@@ -71,6 +73,17 @@ function startHealthServer() {
         scan_count: sniper.scanCount,
         sniped_count: sniper.snipedCount,
         last_scan: sniper.lastScanTime
+      } : null,
+      gift_buyer: giftBuyer ? {
+        status: giftBuyer.isRunning ? 'active' : 'idle',
+        account: `@${giftBuyer.client.user?.username || giftBuyer.client.username}`,
+        balance: `${giftBuyer.balance.toLocaleString()} ⭐`,
+        reserve_limit: '40,000 ⭐',
+        upgrade_priority: true,
+        total_upgraded: giftBuyer.totalUpgraded,
+        purchases: giftBuyer.purchaseCount,
+        last_action: giftBuyer.lastAction,
+        last_scan: giftBuyer.lastScanTime
       } : null,
       last_heartbeat: lastHeartbeat
     }, null, 2));
@@ -312,6 +325,22 @@ async function main() {
     }
   } else {
     console.warn(`⚠️ @relayer akkaunti topilmadi, Sniper ishga tushirilmadi.`);
+  }
+
+  // Initialize AutoGiftBuyer (UPG Priority + 50/50 Channels 2000001272 & 2000001271)
+  const primaryClient = clients[0]; // Primary account (shade/moon)
+  if (primaryClient) {
+    try {
+      giftBuyer = new AutoGiftBuyer({
+        client: primaryClient,
+        telegram
+      });
+      await giftBuyer.init();
+      await giftBuyer.start();
+      console.log(`👑 AutoGiftBuyer (UPG Priority + 50/50 Channels) muvaffaqiyatli ishga tushdi (@${primaryClient.username})!\n`);
+    } catch (err) {
+      console.error(`❌ AutoGiftBuyer ishga tushishida xatolik:`, err.message);
+    }
   }
 
   // Natural poll interval: ~800-1100ms with jitter
