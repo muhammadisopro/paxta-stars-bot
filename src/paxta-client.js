@@ -1,4 +1,9 @@
+import dns from 'node:dns';
 import { CookieJar } from './cookie-jar.js';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {}
 
 function generateRandomId() {
   const bytes = new Uint8Array(12);
@@ -45,13 +50,23 @@ export class PaxtaClient {
       options.body = JSON.stringify(options.body);
     }
 
-    const res = await fetch(url, {
-      ...options,
-      headers
-    });
-
-    this.jar.setFromHeaders(res.headers);
-    return res;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetch(url, {
+          ...options,
+          headers
+        });
+        this.jar.setFromHeaders(res.headers);
+        return res;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 400 * attempt));
+        }
+      }
+    }
+    throw lastErr;
   }
 
   async login() {
