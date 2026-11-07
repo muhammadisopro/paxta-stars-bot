@@ -22,8 +22,8 @@ export const DEFAULT_GIFT_CONFIG = {
   // Hisobda qolishi shart bo'lgan minimal yulduzlar miqdori (40,000 Stars):
   minBalanceReserve: 40000,
 
-  // Upgrade ga ruxsat berish (Birinchi o'rindagi ustuvorlik):
-  autoUpgradePriority: true,
+  // Upgrade ga ruxsat berish (Faqat Number Sniper upgrade qiladi):
+  autoUpgradePriority: false,
 
   // Do'kon va inventarni tekshirish tezligi (har 500 ms):
   pollIntervalMs: 500
@@ -265,18 +265,7 @@ export class AutoGiftBuyer {
                   ).catch(() => {});
                 }
 
-                // Darhol olingan zahoti yangi sovg'ani upgrade qilishga urinish:
-                const createdGiftId = sendData.user_gift?.id || sendData.gift?.id;
-                if (createdGiftId) {
-                  console.log(`[${ts()}] 👑 Yangi sovg'a darhol upgrade qilinmoqda (ID: ${createdGiftId})...`);
-                  const fastUpRes = await this.client.request(`/user-gifts/${createdGiftId}/upgrade`, {
-                    method: 'POST',
-                    body: {}
-                  });
-                  if (fastUpRes.ok) {
-                    console.log(`🌟 [${ts()}] YANGI SOVG'A DARHOL 1-O'RINDA NFT GA UPGRADE BO'LDI!`);
-                  }
-                }
+                // Upgrade faqat Number Sniper orqali amalga oshiriladi (bu yerda upg o'chirilgan)
               } else {
                 const errData = await sendRes.json().catch(() => ({}));
                 console.error(`❌ [${ts()}] Xaridda xatolik:`, errData.message || sendRes.statusText);
