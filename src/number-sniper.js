@@ -23,14 +23,12 @@ const telegram = new TelegramNotifier();
 // ========================================================
 // 🎯 SNIPER MAQSADLI RAQAMLARI (TARGET NUMBERS)
 // ========================================================
-// Foydalanuvchi so'ragan raqamlar + 333 (hozirgi raqam 300+ bo'lgani uchun)
 const TARGET_NUMBERS = [
-  333, // 332 chiqqan zahoti darhol upg qilinadi
-  444, // 443 chiqqan zahoti darhol upg qilinadi
-  555, // 554 chiqqan zahoti darhol upg qilinadi
-  777, // 776 chiqqan zahoti darhol upg qilinadi
-  888, // 887 chiqqan zahoti darhol upg qilinadi
-  999  // 998 chiqqan zahoti darhol upg qilinadi
+  444, // 443 chiqishi bilan darhol upg qilinadi
+  555, // 554 chiqishi bilan darhol upg qilinadi
+  777, // 776 chiqishi bilan darhol upg qilinadi
+  888, // 887 chiqishi bilan darhol upg qilinadi
+  999  // 998 chiqishi bilan darhol upg qilinadi
 ];
 
 const GIFT_SLUG = 'DeskCalendar';
@@ -68,50 +66,77 @@ export class NumberSniper {
     await this.findCurrentHighestNumber();
   }
 
+  /**
+   * Kanallardagi va profildagi barcha upgrade qilinmagan giftlarni to'playdi
+   */
   async refreshUnupgradedGifts() {
-    const res = await this.client.request(`/users/${this.client.user.id}/gifts`);
-    if (res.ok) {
-      const d = await res.json();
-      this.unupgradedGifts = (d.gifts || []).filter(g => g.gift?.id === GIFT_ID && !g.unique);
-      console.log(`[${ts()}] 📦 Zaxirada UPGRADE qilinmagan Desk Calendar'lar: ${this.unupgradedGifts.length} ta`);
-      if (this.unupgradedGifts.length === 0) {
-        console.warn(`⚠️ DIQQAT: Zaxirangizda upgrade qilinmagan gift qolmadi!`);
-      }
+    this.unupgradedGifts = [];
+    const sources = [
+      { name: 'Kalendar (2000001271)', url: `/chats/2000001271/gifts` },
+      { name: 'Gift uchun (2000001272)', url: `/chats/2000001272/gifts` },
+      { name: 'Profil @moon', url: `/users/${this.client.user.id}/gifts` }
+    ];
+
+    for (const src of sources) {
+      try {
+        const res = await this.client.request(src.url);
+        if (res.ok) {
+          const d = await res.json();
+          const unupg = (d.gifts || []).filter(g => g.gift?.id === GIFT_ID && !g.unique);
+          this.unupgradedGifts.push(...unupg);
+          console.log(`   📍 ${src.name}: ${unupg.length} ta upgradesiz Desk Calendar bor.`);
+        }
+      } catch {}
     }
+
+    console.log(`[${ts()}] 📦 JAMI ZAXIRADA UPGRADEGA TAYYOR SOVG'ALAR: ${this.unupgradedGifts.length} ta`);
+    if (this.unupgradedGifts.length === 0) {
+      console.warn(`⚠️ DIQQAT: Zaxirangizda upgrade qilinmagan gift qolmadi!`);
+    }
+  }
+
+  async checkIfNumberExists(num) {
+    try {
+      const res = await this.client.request(`/nft/${GIFT_SLUG}-${num}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('json')) {
+        const d = await res.json();
+        return typeof d.gift?.number === 'number';
+      }
+    } catch {}
+    return false;
   }
 
   async findCurrentHighestNumber() {
     console.log(`[${ts()}] 🔍 Hozirgi eng so'nggi chiqqan NFT raqami aniqlanmoqda...`);
-    let low = 300;
-    let high = 1000;
-    let best = 300;
+    let best = 164; // biz bilgan baza
 
-    // Tezkor tekshirish
-    while (low <= high) {
-      const mid = Math.floor((low + high) / 2);
-      const res = await this.client.request(`/nft/${GIFT_SLUG}-${mid}`);
-      if (res.ok) {
-        best = mid;
-        low = mid + 1; // Yuqoriroqni qidiramiz
+    // Probing from 200 upwards
+    for (const probe of [200, 250, 300, 350, 400, 420, 430, 440, 444]) {
+      const exists = await this.checkIfNumberExists(probe);
+      if (exists) {
+        best = probe;
       } else {
-        high = mid - 1;
+        break;
       }
-      await sleep(40);
+      await sleep(100);
     }
 
     // Best atrofini aniqlashtirish
-    for (let i = best; i <= best + 5; i++) {
-      const res = await this.client.request(`/nft/${GIFT_SLUG}-${i}`);
-      if (res.ok) {
+    for (let i = best; i <= best + 15; i++) {
+      const exists = await this.checkIfNumberExists(i);
+      if (exists) {
         best = i;
       } else {
         break;
       }
-      await sleep(30);
+      await sleep(50);
     }
 
     this.latestNumber = best;
-    console.log(`[${ts()}] 📍 Hozirgi eng oxirgi chiqqan raqam: #${this.latestNumber}`);
+    console.log(`[${ts()}] 📍 Hozirgi eng oxirgi tasdiqlangan raqam: #${this.latestNumber}`);
     return best;
   }
 
@@ -119,11 +144,10 @@ export class NumberSniper {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    console.log(`\n⚡ [${ts()}] Sniper faollashtirildi! Tezlik: har 100-250 ms da skan...`);
+    console.log(`\n⚡ [${ts()}] Sniper faollashtirildi! Har bir nishon monitoringda...\n`);
 
     while (this.isRunning) {
       try {
-        // Zaxirada hali gift bormi tekshiramiz
         if (this.unupgradedGifts.length === 0) {
           await this.refreshUnupgradedGifts();
           if (this.unupgradedGifts.length === 0) {
@@ -133,7 +157,6 @@ export class NumberSniper {
           }
         }
 
-        // Qaysi nishon yaqinligini topamiz
         const nextTarget = TARGET_NUMBERS.find(n => n > this.latestNumber);
         if (!nextTarget) {
           console.log(`🏁 Barcha mo'ljaldagi raqamlar tugadi.`);
@@ -143,13 +166,12 @@ export class NumberSniper {
         const triggerNumber = nextTarget - 1;
         const distance = nextTarget - this.latestNumber;
 
-        // 1. Agar nishonga 2 ta yoki 1 ta qolgan bo'lsa (TURBO REJIM)
+        // 1. TURBO REJIM: Agar nishonga 2 ta yoki 1 ta qolgan bo'lsa
         if (distance <= 2) {
           process.stdout.write(`\r🚨🚨 [TURBO SNIPE] Nishon: #${nextTarget}! Trigger #${triggerNumber} kutilmoqda... (Hozir: #${this.latestNumber})   `);
 
-          // Trigger raqamini tekshiramiz
-          const trigRes = await this.client.request(`/nft/${GIFT_SLUG}-${triggerNumber}`);
-          if (trigRes.ok) {
+          const trigExists = await this.checkIfNumberExists(triggerNumber);
+          if (trigExists) {
             console.log(`\n\n🎯🎯🎯 [TRIGGER URILDI!] #${triggerNumber} chiqdi! DARHOL #${nextTarget} UCHUN UPGRADE! 🎯🎯🎯`);
             
             const candidate = this.unupgradedGifts.shift();
@@ -172,7 +194,7 @@ export class NumberSniper {
                   `🏆 Sizga tushgan raqam: <b>#${wonNum}</b>\n` +
                   `🎨 Model: <b>${model}</b>\n` +
                   `⚡ Tezlik: ${latency} ms\n` +
-                  `🎯 Nishon: #${nextTarget}`
+                  `🎯 Mo'ljal: #${nextTarget}`
                 ).catch(() => {});
               }
             } else {
@@ -185,21 +207,22 @@ export class NumberSniper {
             await sleep(1000);
             continue;
           }
+
+          await sleep(100);
+          continue;
         }
 
-        // 2. Normal rejim: keyingi raqam chiqqanini kuzatish (this.latestNumber + 1)
+        // 2. Normal rejim: keyingi raqam chiqqanini kuzatish
         const checkNum = this.latestNumber + 1;
-        const res = await this.client.request(`/nft/${GIFT_SLUG}-${checkNum}`);
-        if (res.ok) {
+        const exists = await this.checkIfNumberExists(checkNum);
+        if (exists) {
           this.latestNumber = checkNum;
           process.stdout.write(`\r[${ts()}] 📈 Yangi upgrade bo'ldi: #${this.latestNumber} | Keyingi nishon: #${nextTarget} (qoldi: ${nextTarget - this.latestNumber})   `);
         } else {
-          // Kichik kutish
-          await sleep(150);
+          await sleep(250);
         }
 
       } catch (err) {
-        // xatolik bo'lsa biroz kutish
         await sleep(500);
       }
     }

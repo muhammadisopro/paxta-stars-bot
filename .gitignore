@@ -1,4 +1,7 @@
 node_modules/
 accounts.json
+.prewarmed-sessions.json
 .env
+.dev.vars
+*.log
 .DS_Store
