@@ -1,0 +1,16 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B132B"/>
+      <stop offset="100%" stop-color="#1C2541"/>
+    </linearGradient>
+    <linearGradient id="acc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5BC0BE"/>
+      <stop offset="100%" stop-color="#3A86FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <circle cx="232" cy="222" r="95" fill="none" stroke="url(#acc)" stroke-width="24"/>
+  <line x1="300" y1="290" x2="386" y2="376" stroke="url(#acc)" stroke-width="28" stroke-linecap="round"/>
+  <text x="256" y="452" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" font-weight="bold" fill="#6FFFE9" text-anchor="middle" letter-spacing="3">SEARCHBOT</text>
+</svg>

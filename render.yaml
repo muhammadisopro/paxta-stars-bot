@@ -1,10 +1,13 @@
 services:
   - type: web
-    name: paxta-stars-bot
+    name: paxta-bots
     runtime: node
+    rootDir: paxta-bots
     plan: free
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node runner.js
     envVars:
-      - key: PORT
-        value: 3000
+      - key: BOT_ENV_JSON
+        sync: false
+      - key: PREWARMED_SESSIONS_JSON
+        sync: false

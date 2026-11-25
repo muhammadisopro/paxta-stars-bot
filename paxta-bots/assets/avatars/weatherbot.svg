@@ -1,0 +1,12 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0C4A6E"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <circle cx="295" cy="185" r="68" fill="#FACC15"/>
+  <path d="M165 320 H345 A52 52 0 0 0 355 218 A74 74 0 0 0 215 198 A58 58 0 0 0 165 320 Z" fill="#F8FAFC" opacity="0.95"/>
+  <text x="256" y="452" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="bold" fill="#E0F2FE" text-anchor="middle" letter-spacing="2.5">WEATHERBOT</text>
+</svg>

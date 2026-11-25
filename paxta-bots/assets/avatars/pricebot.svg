@@ -1,0 +1,18 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1204"/>
+      <stop offset="100%" stop-color="#3D2705"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3B0"/>
+      <stop offset="50%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="188" fill="none" stroke="url(#gold)" stroke-width="10" opacity="0.85"/>
+  <polygon points="256,110 375,205 256,392 137,205" fill="url(#gold)" opacity="0.95"/>
+  <polygon points="256,110 375,205 256,245 137,205" fill="#FFFBEB" opacity="0.35"/>
+  <text x="256" y="452" font-family="DejaVu Sans, Arial, sans-serif" font-size="36" font-weight="bold" fill="#FFD700" text-anchor="middle" letter-spacing="3">PRICEBOT</text>
+</svg>

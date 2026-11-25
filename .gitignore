@@ -5,3 +5,6 @@ accounts.json
 .dev.vars
 *.log
 .DS_Store
+.env.json
+paxta-bots/data/
+*.json.tmp

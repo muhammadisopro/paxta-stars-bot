@@ -1,0 +1,14 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <circle cx="256" cy="232" r="142" fill="#0F172A" stroke="#38BDF8" stroke-width="14"/>
+  <line x1="256" y1="232" x2="256" y2="142" stroke="#F8FAFC" stroke-width="14" stroke-linecap="round"/>
+  <line x1="256" y1="232" x2="322" y2="262" stroke="#FACC15" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="256" cy="232" r="12" fill="#38BDF8"/>
+  <text x="256" y="452" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" font-weight="bold" fill="#7DD3FC" text-anchor="middle" letter-spacing="3">SOATBOT</text>
+</svg>

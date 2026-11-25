@@ -1,0 +1,16 @@
+{
+  "name": "paxta-bots",
+  "version": "1.0.0",
+  "description": "PaxtaGram 4-bot suite (@Pricebot, @Checkbot, @Statsbot, @Pixelbot)",
+  "type": "module",
+  "main": "runner.js",
+  "scripts": {
+    "start": "node runner.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "sharp": "^0.35.5"
+  }
+}

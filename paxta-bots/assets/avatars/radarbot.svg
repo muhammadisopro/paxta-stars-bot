@@ -1,0 +1,16 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A0526"/>
+      <stop offset="100%" stop-color="#3B0764"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <circle cx="256" cy="235" r="145" fill="none" stroke="#C084FC" stroke-width="6" opacity="0.5"/>
+  <circle cx="256" cy="235" r="95" fill="none" stroke="#E879F9" stroke-width="6" opacity="0.7"/>
+  <circle cx="256" cy="235" r="45" fill="none" stroke="#F0ABFC" stroke-width="6"/>
+  <line x1="256" y1="235" x2="360" y2="135" stroke="#22D3EE" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="256" cy="235" r="14" fill="#22D3EE"/>
+  <circle cx="322" cy="185" r="12" fill="#FACC15"/>
+  <text x="256" y="452" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" font-weight="bold" fill="#E9D5FF" text-anchor="middle" letter-spacing="3">RADARBOT</text>
+</svg>
